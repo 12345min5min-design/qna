@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Homework Q&A Forum</title>
+
+  <!-- ฟอนต์ + ไอคอน -->
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body { font-family: 'Kanit', sans-serif; }
+    .transition-all { transition: all 0.3s ease-in-out; }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+  <!-- Header -->
+  <header class="bg-white shadow-md sticky top-0 z-40">
+    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+      <h1 class="text-xl md:text-2xl font-bold text-blue-800">
+        <i class="fas fa-brain mr-2"></i> Homework Q&A
+      </h1>
+      <button id="open-question-modal-btn"
+        class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full transition-all shadow-lg transform hover:scale-105">
+        <i class="fas fa-plus mr-2"></i> ตั้งกระทู้ใหม่
+      </button>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="container mx-auto p-4 md:p-6">
+    <!-- Search -->
+    <section class="mb-6">
+      <div class="relative">
+        <input type="text" id="search-bar" placeholder="ค้นหาหัวข้อคำถาม..."
+          class="w-full p-3 pl-10 border rounded-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+      </div>
+    </section>
+
+    <!-- Questions -->
+    <section id="questions-section">
+      <h2 class="text-2xl font-semibold mb-4 text-blue-900">กระทู้คำถามล่าสุด</h2>
+      <div id="questions-container" class="space-y-4"></div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-blue-900 text-white py-4 mt-8">
+    <div class="container mx-auto text-center">
+      <p>&copy; 2025 Homework Q&A Forum By Kong.</p>
+    </div>
+  </footer>
+
+  <!-- Modal -->
+  <div id="question-modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden items-center justify-center p-4">
+    <div id="modal-content"
+      class="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col transform transition-all scale-95 opacity-0">
+      <div class="p-4 border-b flex justify-between items-center">
+        <h3 id="modal-title" class="text-xl font-semibold text-blue-800"></h3>
+        <button id="close-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+      </div>
+      <div id="modal-body" class="p-6 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast-notification"
+    class="fixed bottom-5 right-5 bg-green-500 text-white py-2 px-5 rounded-lg shadow-xl opacity-0 transform translate-y-10 transition-all z-50">
+    <p id="toast-message"></p>
+  </div>
+
+  <!-- Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      let questions = [];
+      const questionsContainer = document.getElementById('questions-container');
+      const searchBar = document.getElementById('search-bar');
+      const modal = document.getElementById('question-modal');
+      const modalContent = document.getElementById('modal-content');
+      const modalTitle = document.getElementById('modal-title');
+      const modalBody = document.getElementById('modal-body');
+      const closeModalBtn = document.getElementById('close-modal-btn');
+      const openQuestionModalBtn = document.getElementById('open-question-modal-btn');
+      const toast = document.getElementById('toast-notification');
+      const toastMessage = document.getElementById('toast-message');
+
+      const getSampleData = () => [
+        {
+          id: "1",
+          author: "นักเรียน A",
+          title: "ช่วยอธิบายการแก้สมการ x^2 - 5x + 6 = 0 หน่อยครับ",
+          details: "ผมงงว่าทำไมคำตอบออกมาเป็น x=2 หรือ x=3",
+          tags: ["คณิตศาสตร์", "สมการ"],
+          timestamp: Date.now() - 86400000,
+          answers: [
+            { id: "a1", author: "ครู B", text: "เพราะเป็นการแยกตัวประกอบ (x-2)(x-3)=0 ครับ", timestamp: Date.now() - 80000000, votes: 3 }
+          ]
+        }
+      ];
+
+      const fetchQuestions = () => {
+        const data = localStorage.getItem('smartForumData');
+        try { return data ? JSON.parse(data) : getSampleData(); }
+        catch { return getSampleData(); }
+      };
+
+      const saveQuestions = () => localStorage.setItem('smartForumData', JSON.stringify(questions));
+      const generateUUID = () => crypto.randomUUID();
+
+      const renderQuestions = (filteredQuestions) => {
+        const qs = filteredQuestions || questions;
+        qs.sort((a, b) => b.timestamp - a.timestamp);
+        questionsContainer.innerHTML = '';
+        if (qs.length === 0) {
+          questionsContainer.innerHTML = `<div class="bg-white p-6 rounded-lg shadow-md text-center text-gray-500"><i class="fas fa-search fa-2x mb-2"></i><p>ไม่พบคำถาม</p></div>`;
+          return;
+        }
+        qs.forEach(q => {
+          const postDate = new Date(q.timestamp).toLocaleDateString('th-TH');
+          const card = document.createElement('div');
+          card.className = 'bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-all cursor-pointer border-l-4 border-transparent hover:border-blue-500';
+          card.dataset.id = q.id;
+          card.innerHTML = `
+            <h3 class="text-lg font-semibold text-blue-800 mb-2">${q.title}</h3>
+            <div class="flex flex-wrap items-center text-sm text-gray-500 space-x-4">
+              <span><i class="fas fa-user mr-2"></i>${q.author}</span>
+              <span><i class="fas fa-clock mr-2"></i>${postDate}</span>
+              <span><i class="fas fa-comments mr-2"></i>${q.answers.length} คำตอบ</span>
+            </div>`;
+          questionsContainer.appendChild(card);
+          card.addEventListener('click', () => renderQuestionDetail(q.id));
+        });
+      };
+
+      const renderQuestionDetail = (id) => {
+        const q = questions.find(x => x.id === id);
+        if (!q) return;
+        modalTitle.textContent = "รายละเอียดคำถาม";
+        let tagsHTML = q.tags.map(t => `<span class="bg-blue-100 text-blue-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded-full">${t}</span>`).join('');
+        modalBody.innerHTML = `
+          <div class="mb-6 pb-4 border-b">
+            <h2 class="text-2xl font-bold mb-2">${q.title}</h2>
+            <div class="flex flex-wrap items-center text-sm text-gray-600 mb-3">
+              <span class="mr-4"><i class="fas fa-user mr-1"></i> ${q.author}</span>
+              <span><i class="fas fa-calendar-alt mr-1"></i> ${new Date(q.timestamp).toLocaleString('th-TH')}</span>
+            </div>
+            <div class="flex flex-wrap gap-2 mb-4">${tagsHTML}</div>
+            <p class="text-gray-700 whitespace-pre-wrap">${q.details}</p>
+          </div>
+          <div id="answers-section">
+            <h3 class="text-xl font-semibold mb-4">${q.answers.length} คำตอบ</h3>
+            <div id="answers-list" class="space-y-4 mb-6"></div>
+          </div>
+          <form id="add-answer-form" data-question-id="${q.id}">
+            <h3 class="text-xl font-semibold mb-3">เพิ่มคำตอบของคุณ</h3>
+            <input type="text" name="author" placeholder="ชื่อของคุณ" class="w-full p-2 border rounded-md mb-2" required>
+            <textarea name="text" rows="4" placeholder="คำตอบ..." class="w-full p-2 border rounded-md mb-2" required></textarea>
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md">ส่งคำตอบ</button>
+          </form>`;
+        renderAnswers(id);
+        openModal();
+      };
+
+      const renderAnswers = (qid) => {
+        const q = questions.find(x => x.id === qid);
+        const list = document.getElementById('answers-list');
+        list.innerHTML = '';
+        if (!q || q.answers.length === 0) {
+          list.innerHTML = `<p class="text-gray-500">ยังไม่มีคำตอบ</p>`;
+          return;
+        }
+        [...q.answers].sort((a, b) => b.votes - a.votes).forEach(ans => {
+          const div = document.createElement('div');
+          div.className = 'bg-gray-50 p-4 rounded-lg border';
+          div.innerHTML = `
+            <div class="flex justify-between items-start">
+              <div>
+                <p>${ans.text}</p>
+                <p class="text-xs text-gray-500 mt-2">โดย ${ans.author} - ${new Date(ans.timestamp).toLocaleString('th-TH')}</p>
+              </div>
+              <button data-question-id="${qid}" data-answer-id="${ans.id}" class="upvote-btn flex items-center space-x-2 text-gray-600 hover:text-green-600">
+                <i class="fas fa-thumbs-up"></i><span>${ans.votes}</span>
+              </button>
+            </div>`;
+          list.appendChild(div);
+        });
+      };
+
+      const renderNewQuestionForm = () => {
+        modalTitle.textContent = 'สร้างกระทู้คำถามใหม่';
+        modalBody.innerHTML = `
+          <form id="new-question-form">
+            <input type="text" name="author" placeholder="ชื่อผู้ถาม" class="w-full p-2 border rounded-md mb-2" required>
+            <input type="text" name="title" placeholder="หัวข้อคำถาม" class="w-full p-2 border rounded-md mb-2" required>
+            <textarea name="details" rows="4" placeholder="รายละเอียด..." class="w-full p-2 border rounded-md mb-2" required></textarea>
+            <input type="text" id="tags-input" placeholder="เพิ่ม Tag... (กด Enter)" class="w-full p-2 border rounded-md mb-2">
+            <div id="tags-container" class="flex flex-wrap gap-2 p-2 border rounded-md mb-2 bg-gray-50 min-h-[40px]"></div>
+            <button type="submit" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md">โพสต์คำถาม</button>
+          </form>`;
+        openModal();
+      };
+
+      // Modal controls
+      const openModal = () => {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        setTimeout(() => {
+          modalContent.classList.remove('scale-95', 'opacity-0');
+          modalContent.classList.add('scale-100', 'opacity-100');
+        }, 50);
+      };
+      const closeModal = () => {
+        modalContent.classList.remove('scale-100', 'opacity-100');
+        modalContent.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+          modal.classList.remove('flex');
+          modal.classList.add('hidden');
+        }, 200);
+      };
+
+      // Init
+      questions = fetchQuestions();
+      renderQuestions();
+
+      // Events
+      closeModalBtn.addEventListener('click', closeModal);
+      openQuestionModalBtn.addEventListener('click', renderNewQuestionForm);
+      searchBar.addEventListener('input', e => {
+        const q = e.target.value.toLowerCase();
+        const filtered = questions.filter(x =>
+          x.title.toLowerCase().includes(q) || x.details.toLowerCase().includes(q));
+        renderQuestions(filtered);
+      });
+
+      // Submit new question
+      modal.addEventListener('submit', e => {
+        e.preventDefault();
+        if (e.target.id === 'new-question-form') {
+          const fd = new FormData(e.target);
+          const newQ = {
+            id: generateUUID(),
+            author: fd.get('author'),
+            title: fd.get('title'),
+            details: fd.get('details'),
+            tags: [],
+            timestamp: Date.now(),
+            answers: []
+          };
+          questions.push(newQ);
+          saveQuestions();
+          renderQuestions();
+          closeModal();
+        }
+        if (e.target.id === 'add-answer-form') {
+          const fd = new FormData(e.target);
+          const qid = e.target.dataset.questionId;
+          const q = questions.find(x => x.id === qid);
+          if (q) {
+            q.answers.push({
+              id: generateUUID(),
+              author: fd.get('author'),
+              text: fd.get('text'),
+              timestamp: Date.now(),
+              votes: 0
+            });
+            saveQuestions();
+            renderAnswers(qid);
+            renderQuestions();
+            e.target.reset();
+          }
+        }
+      });
+
+      // Upvote
+      modal.addEventListener('click', e => {
+        if (e.target.closest('.upvote-btn')) {
+          const btn = e.target.closest('.upvote-btn');
+          const qid = btn.dataset.questionId;
+          const aid = btn.dataset.answerId;
+          const q = questions.find(x => x.id === qid);
+          const ans = q.answers.find(a => a.id === aid);
+          ans.votes++;
+          saveQuestions();
+          renderAnswers(qid);
+          renderQuestions();
+        }
+      });
+
+    });
+  </script>
+
+</body>
+</html>
